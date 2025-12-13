@@ -10,24 +10,9 @@ from nwutil import (
 
 
 class RSAEnv(gym.Env):
-    """
-    Custom Gymnasium environment for Routing and Spectrum Allocation (RSA) problem.
-
-    The environment simulates an optical network where requests arrive sequentially
-    and need to be assigned to paths with available wavelengths.
-
-    State Space:
-        - Network link utilizations (12 links in the topology)
-        - Current request information (source, destination, holding_time)
-
-    Action Space:
-        - Discrete actions representing path choices (0-7 for 8 possible paths)
-        - Action 8 represents blocking the request
-
-    Reward:
-        - Positive reward for successfully allocating a request
-        - Negative penalty for blocking a request
-    """
+    # Custom Gymnasium environment for Routing and Spectrum Allocation (RSA) problem
+    # Simulates an optical network where requests arrive sequentially
+    # and need to be assigned to paths with available wavelengths
 
     metadata = {'render_modes': []}
 
@@ -62,7 +47,7 @@ class RSAEnv(gym.Env):
         )
 
     def _load_requests(self, file_path):
-        """Load requests from CSV file."""
+        # Load requests from CSV file
         df = pd.read_csv(file_path)
         self.requests = []
         for _, row in df.iterrows():
@@ -75,12 +60,8 @@ class RSAEnv(gym.Env):
             )
 
     def _get_observation(self):
-        """
-        Generate the observation vector.
-        Consists of:
-        - Link utilizations (12 values)
-        - Current request normalized features (3 values)
-        """
+        # Generate the observation vector
+        # Link utilizations (12 values) + current request normalized features (3 values)
         network_state = get_network_state_vector(self.graph)
 
         if self.current_request:
@@ -96,10 +77,8 @@ class RSAEnv(gym.Env):
         return obs
 
     def _get_path_for_action(self, action):
-        """
-        Map action index to path based on current request's src-dst pair.
-        Returns None if action is invalid or represents blocking.
-        """
+        # Map action index to path based on current request's src-dst pair
+        # Returns None if action is invalid or represents blocking
         if action == 8:  # Block action
             return None
 
@@ -132,19 +111,7 @@ class RSAEnv(gym.Env):
         return None
 
     def step(self, action):
-        """
-        Execute one step in the environment.
-
-        Args:
-            action: Integer representing the path choice or block action
-
-        Returns:
-            observation: Current state
-            reward: Reward for the action
-            terminated: Whether the episode is done
-            truncated: Whether the episode was truncated
-            info: Additional information
-        """
+        # Execute one step in the environment
         reward = 0.0
         info = {'blocked': False, 'invalid_action': False}
 
@@ -207,17 +174,7 @@ class RSAEnv(gym.Env):
         return observation, reward, terminated, truncated, info
 
     def reset(self, seed=None, options=None):
-        """
-        Reset the environment to initial state.
-
-        Args:
-            seed: Random seed
-            options: Additional options (can include 'request_file')
-
-        Returns:
-            observation: Initial state
-            info: Additional information
-        """
+        # Reset the environment to initial state
         super().reset(seed=seed)
 
         # Handle options for request file
@@ -246,9 +203,9 @@ class RSAEnv(gym.Env):
         return observation, info
 
     def render(self):
-        """Render the environment (not implemented)."""
+        # Render the environment (not implemented)
         pass
 
     def close(self):
-        """Clean up resources."""
+        # Clean up resources
         pass

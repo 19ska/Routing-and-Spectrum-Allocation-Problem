@@ -22,11 +22,8 @@ class BaseLinkState:
         return f"LinkState(capacity={self.capacity}, util={self.utilization})"
 
 class LinkState(BaseLinkState):
-    """
-    Data structure to store the link state.
-    You can extend this class to add more attributes if needed.
-    Do not change the BaseLinkState class.
-    """
+    # Data structure to store the link state
+    # Extended to track wavelength availability and lightpath information
     def __init__(self, u, v, capacity=20, utilization=0.0):
         super().__init__(u, v, capacity, utilization)
         self.wavelengths = [True] * capacity  # True = available, False = in use
@@ -70,15 +67,13 @@ PATHS = {
 
 
 def get_available_paths(source, destination):
-    """Get available paths for a source-destination pair."""
+    # Get available paths for a source-destination pair
     return PATHS.get((source, destination), [])
 
 
 def find_available_wavelength(graph, path):
-    """
-    Find the first available wavelength on a path using first-fit allocation.
-    Returns wavelength index or None if no wavelength is available.
-    """
+    # Find the first available wavelength on a path using first-fit allocation
+    # Returns wavelength index or None if no wavelength is available
     if not path or len(path) < 2:
         return None
 
@@ -110,9 +105,7 @@ def find_available_wavelength(graph, path):
 
 
 def allocate_lightpath(graph, path, wavelength, request, current_time):
-    """
-    Allocate a lightpath on the given path with the specified wavelength.
-    """
+    # Allocate a lightpath on the given path with the specified wavelength
     expiry_time = current_time + request.holding_time
 
     for i in range(len(path) - 1):
@@ -126,9 +119,7 @@ def allocate_lightpath(graph, path, wavelength, request, current_time):
 
 
 def release_expired_lightpaths(graph, current_time):
-    """
-    Release lightpaths that have expired at the current time.
-    """
+    # Release lightpaths that have expired at the current time
     for u, v, data in graph.edges(data=True):
         link_state = data['state']
         wavelengths_to_release = []
@@ -144,10 +135,8 @@ def release_expired_lightpaths(graph, current_time):
 
 
 def get_network_state_vector(graph):
-    """
-    Convert the graph state into a feature vector for the DQN agent.
-    Returns a flattened vector representing link utilizations.
-    """
+    # Convert the graph state into a feature vector for the DQN agent
+    # Returns a flattened vector representing link utilizations
     state_vector = []
 
     # Sort edges for consistent ordering
