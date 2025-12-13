@@ -11,9 +11,8 @@ pip install gymnasium stable-baselines3 networkx pandas numpy matplotlib
 ```
 
 ### Training and Evaluation
-Navigate to the project directory and run the main training script:
+Run the main training script:
 ```bash
-cd project
 python dqn_runner.py
 ```
 
@@ -29,15 +28,7 @@ This command will:
 **Expected Duration**: 2-4 hours total for both models
 
 ### Quick Testing
-To verify implementation before full training:
-```bash
-python test_implementation.py
-```
-
-To test a trained model on a single file:
-```bash
-python quick_eval.py dqn_rsa_capacity20 data/eval/requests-0.csv 20
-```
+To verify implementation before full training, you would need to create test files. The main training script can be run directly.
 
 ## Environment
 
@@ -173,20 +164,20 @@ The DQN agent is trained using the stable-baselines3 library with the following 
 
 ### Systematic Hyperparameter Tuning
 
-Hyperparameters were systematically tuned through experimentation. The final configuration is implemented in `dqn_runner.py` lines 95-107:
+Hyperparameters were systematically tuned through experimentation. The final configuration is implemented in `dqn_runner.py`:
 
 ```python
-# Hyperparameters - systematically tuned
-learning_rate = 1e-4          # Lower learning rate for stable convergence
-buffer_size = 50000           # Large buffer to store diverse experiences
-learning_starts = 1000        # Start learning after collecting initial experiences
-batch_size = 64               # Standard batch size for DQN
-tau = 1.0                     # Hard target network update
-gamma = 0.99                  # High discount factor for long-term planning
-target_update_interval = 1000 # Update target network every 1000 steps
-exploration_fraction = 0.3    # Explore for 30% of training
+# Tuned hyperparameters
+learning_rate = 1e-4
+buffer_size = 50000
+learning_starts = 1000
+batch_size = 64
+tau = 1.0
+gamma = 0.99
+target_update_interval = 1000
+exploration_fraction = 0.3
 exploration_initial_eps = 1.0
-exploration_final_eps = 0.05  # Maintain some exploration
+exploration_final_eps = 0.05
 ```
 
 **Tuning Process**:
