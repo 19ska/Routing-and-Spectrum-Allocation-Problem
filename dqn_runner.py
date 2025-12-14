@@ -6,6 +6,14 @@ import gymnasium as gym
 from stable_baselines3 import DQN
 from stable_baselines3.common.callbacks import BaseCallback
 from rsaenv import RSAEnv
+import argparse
+
+try:
+    import optuna
+    import joblib
+    OPTUNA_AVAILABLE = True
+except ImportError:
+    OPTUNA_AVAILABLE = False
 
 
 class TrainingMetricsCallback(BaseCallback):
@@ -56,7 +64,7 @@ class MultiFileEnvWrapper(gym.Wrapper):
         return obs, info
 
 
-def train_dqn_agent(capacity=20, total_timesteps=1000000, model_name='dqn_rsa'):
+def train_dqn_agent(capacity=20, total_timesteps=1000000, model_name='dqn_rsa', hyperparams=None):
     # Train a DQN agent for the RSA problem
     print(f"Training DQN agent with capacity={capacity}")
 
@@ -66,17 +74,31 @@ def train_dqn_agent(capacity=20, total_timesteps=1000000, model_name='dqn_rsa'):
     env = MultiFileEnvWrapper(train_files, capacity=capacity)
     callback = TrainingMetricsCallback(verbose=1)
 
-    # Tuned hyperparameters
-    learning_rate = 1e-4
-    buffer_size = 50000
-    learning_starts = 1000
-    batch_size = 64
-    tau = 1.0
-    gamma = 0.99
-    target_update_interval = 1000
-    exploration_fraction = 0.3
-    exploration_initial_eps = 1.0
-    exploration_final_eps = 0.05
+    # Use provided hyperparameters or defaults
+    if hyperparams is None:
+        # Default tuned hyperparameters
+        learning_rate = 1e-4
+        buffer_size = 50000
+        learning_starts = 1000
+        batch_size = 64
+        tau = 1.0
+        gamma = 0.99
+        target_update_interval = 1000
+        exploration_fraction = 0.3
+        exploration_initial_eps = 1.0
+        exploration_final_eps = 0.05
+    else:
+        # Use optimized hyperparameters
+        learning_rate = hyperparams['learning_rate']
+        buffer_size = hyperparams['buffer_size']
+        learning_starts = hyperparams['learning_starts']
+        batch_size = hyperparams['batch_size']
+        tau = 1.0
+        gamma = hyperparams['gamma']
+        target_update_interval = hyperparams['target_update_interval']
+        exploration_fraction = hyperparams['exploration_fraction']
+        exploration_initial_eps = 1.0
+        exploration_final_eps = hyperparams['exploration_final_eps']
 
     model = DQN(
         'MlpPolicy',
@@ -215,22 +237,150 @@ def plot_evaluation_results(rewards, blocking_rates, capacity, save_prefix='eval
     print(f"Saved {plot_path}")
 
 
+def optimize_hyperparameters(n_trials=20):
+    # Optuna hyperparameter optimization
+    if not OPTUNA_AVAILABLE:
+        print("Optuna not available. Install with: pip install optuna joblib")
+        return None
+    
+    def objective(trial):
+        # Suggest hyperparameters
+        learning_rate = trial.suggest_float('learning_rate', 1e-5, 1e-2, log=True)
+        buffer_size = trial.suggest_categorical('buffer_size', [10000, 25000, 50000, 100000])
+        learning_starts = trial.suggest_int('learning_starts', 500, 2000)
+        batch_size = trial.suggest_categorical('batch_size', [32, 64, 128])
+        gamma = trial.suggest_float('gamma', 0.95, 0.999)
+        target_update_interval = trial.suggest_categorical('target_update_interval', [500, 1000, 2000])
+        exploration_fraction = trial.suggest_float('exploration_fraction', 0.1, 0.5)
+        exploration_final_eps = trial.suggest_float('exploration_final_eps', 0.01, 0.1)
+        
+        hyperparams = {
+            'learning_rate': learning_rate,
+            'buffer_size': buffer_size,
+            'learning_starts': learning_starts,
+            'batch_size': batch_size,
+            'gamma': gamma,
+            'target_update_interval': target_update_interval,
+            'exploration_fraction': exploration_fraction,
+            'exploration_final_eps': exploration_final_eps
+        }
+        
+        print(f"\nTrial {trial.number}: lr={learning_rate:.2e}, buf={buffer_size}, exp={exploration_fraction:.2f}")
+        
+        try:
+            # Use subset of files and shorter training for optimization
+            train_files = sorted(glob.glob('data/train/requests-*.csv'))[:1000]
+            env = MultiFileEnvWrapper(train_files, capacity=20)
+            
+            model = DQN(
+                'MlpPolicy',
+                env,
+                learning_rate=learning_rate,
+                buffer_size=buffer_size,
+                learning_starts=learning_starts,
+                batch_size=batch_size,
+                tau=1.0,
+                gamma=gamma,
+                target_update_interval=target_update_interval,
+                exploration_fraction=exploration_fraction,
+                exploration_initial_eps=1.0,
+                exploration_final_eps=exploration_final_eps,
+                verbose=0
+            )
+            
+            # Short training for optimization
+            model.learn(total_timesteps=100000)
+            env.close()
+            
+            # Quick evaluation
+            eval_files = sorted(glob.glob('data/eval/requests-*.csv'))[:50]
+            blocking_rates = []
+            
+            for request_file in eval_files:
+                env = RSAEnv(request_file=request_file, capacity=20)
+                obs, _ = env.reset()
+                done = False
+                
+                while not done:
+                    action, _ = model.predict(obs, deterministic=True)
+                    obs, reward, terminated, truncated, info = env.step(action)
+                    done = terminated or truncated
+                
+                blocking_rates.append(info.get('blocking_rate', 0.0))
+                env.close()
+            
+            avg_blocking_rate = np.mean(blocking_rates)
+            objective_value = 1.0 - avg_blocking_rate
+            
+            print(f"  Result: Blocking rate = {avg_blocking_rate:.4f}, Objective = {objective_value:.4f}")
+            return objective_value
+            
+        except Exception as e:
+            print(f"  Trial failed: {e}")
+            return 0.0
+    
+    # Create and run study
+    study = optuna.create_study(
+        direction='maximize',
+        sampler=optuna.samplers.TPESampler(seed=42),
+        pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=10)
+    )
+    
+    print(f"Starting hyperparameter optimization ({n_trials} trials)...")
+    study.optimize(objective, n_trials=n_trials)
+    
+    print(f"\nBest trial: {study.best_trial.number}")
+    print(f"Best objective: {study.best_value:.4f}")
+    print(f"Best blocking rate: {1.0 - study.best_value:.4f}")
+    print("\nBest hyperparameters:")
+    for key, value in study.best_params.items():
+        print(f"  {key}: {value}")
+    
+    # Save study
+    joblib.dump(study, 'optuna_study.pkl')
+    print("\nStudy saved to 'optuna_study.pkl'")
+    
+    return study.best_params
+
+
 def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='RSA DQN Training')
+    parser.add_argument('--optimize', action='store_true', help='Run hyperparameter optimization first')
+    parser.add_argument('--trials', type=int, default=20, help='Number of optimization trials')
+    args = parser.parse_args()
+    
+    best_hyperparams = None
+    
+    # Run optimization if requested
+    if args.optimize:
+        print("=" * 60)
+        print("HYPERPARAMETER OPTIMIZATION")
+        print("=" * 60)
+        best_hyperparams = optimize_hyperparameters(args.trials)
+        
+        if best_hyperparams is None:
+            print("Optimization failed, using default hyperparameters")
+        else:
+            print("\nOptimization complete! Using best hyperparameters for training.")
+    
     # Main training and evaluation pipeline
-    # Train capacity=20
-    print("=" * 50)
+    print("\n" + "=" * 50)
     print("PART 1: Training with Capacity=20")
     print("=" * 50)
+    
+    model_name_20 = 'dqn_rsa_capacity20_optimized' if best_hyperparams else 'dqn_rsa_capacity20'
     model_20, callback_20 = train_dqn_agent(
         capacity=20,
         total_timesteps=1000000,
-        model_name='dqn_rsa_capacity20'
+        model_name=model_name_20,
+        hyperparams=best_hyperparams
     )
     plot_training_results(callback_20, capacity=20, save_prefix='training')
 
-    print("\nEvaluating on eval dataset (capacity=20)...")
+    print(f"\nEvaluating on eval dataset (capacity=20)...")
     eval_rewards_20, eval_blocking_20 = evaluate_agent(
-        'dqn_rsa_capacity20',
+        model_name_20,
         capacity=20,
         eval_episodes=1000
     )
@@ -240,16 +390,19 @@ def main():
     print("\n" + "=" * 50)
     print("PART 2: Training with Capacity=10")
     print("=" * 50)
+    
+    model_name_10 = 'dqn_rsa_capacity10_optimized' if best_hyperparams else 'dqn_rsa_capacity10'
     model_10, callback_10 = train_dqn_agent(
         capacity=10,
         total_timesteps=1000000,
-        model_name='dqn_rsa_capacity10'
+        model_name=model_name_10,
+        hyperparams=best_hyperparams
     )
     plot_training_results(callback_10, capacity=10, save_prefix='training')
 
-    print("\nEvaluating on eval dataset (capacity=10)...")
+    print(f"\nEvaluating on eval dataset (capacity=10)...")
     eval_rewards_10, eval_blocking_10 = evaluate_agent(
-        'dqn_rsa_capacity10',
+        model_name_10,
         capacity=10,
         eval_episodes=1000
     )
@@ -260,6 +413,11 @@ def main():
     print("=" * 50)
     print(f"Capacity=20 - Final Avg Blocking Rate (Eval): {np.mean(eval_blocking_20[-10:]):.4f}")
     print(f"Capacity=10 - Final Avg Blocking Rate (Eval): {np.mean(eval_blocking_10[-10:]):.4f}")
+    
+    if best_hyperparams:
+        print(f"\nModels trained with optimized hyperparameters:")
+        print(f"- {model_name_20}.zip")
+        print(f"- {model_name_10}.zip")
 
 
 if __name__ == '__main__':

@@ -7,16 +7,28 @@ Deep Reinforcement Learning solution to the RSA problem in optical networks usin
 ### Prerequisites
 Install required Python packages:
 ```bash
-pip install gymnasium stable-baselines3 networkx pandas numpy matplotlib
+pip install -r requirements.txt
 ```
 
 ### Training and Evaluation
-Run the main training script:
+
+#### Option 1: Standard Training (Default Hyperparameters)
 ```bash
 python dqn_runner.py
 ```
 
-This command will:
+#### Option 2: With Hyperparameter Optimization
+```bash
+python dqn_runner.py --optimize --trials 20
+```
+
+This will:
+1. Run Optuna hyperparameter optimization (20 trials, ~30-60 minutes)
+2. Train both models with the best hyperparameters found
+3. Save models with "_optimized" suffix
+
+#### Training Process
+The training will:
 1. Train DQN agent with capacity=20 (1M timesteps, ~10K episodes)
 2. Evaluate the capacity=20 model on 1000 evaluation files
 3. Generate 3 plots for capacity=20 results (saved in `plots/` directory)
@@ -25,10 +37,25 @@ This command will:
 6. Generate 3 plots for capacity=10 results (saved in `plots/` directory)
 7. Save both trained models as `.zip` files
 
-**Expected Duration**: 2-4 hours total for both models
+**Expected Duration**: 
+- Standard training: 2-4 hours total for both models
+- With optimization: 30-60 minutes + 2-4 hours for final training
+
+### Command Line Options
+```bash
+python dqn_runner.py --help
+```
+
+Available options:
+- `--optimize`: Enable hyperparameter optimization with Optuna
+- `--trials N`: Number of optimization trials (default: 20)
 
 ### Quick Testing
-To verify implementation before full training, you would need to create test files. The main training script can be run directly.
+To test the setup with minimal time investment:
+```bash
+python dqn_runner.py --optimize --trials 2
+```
+This runs a quick 2-trial optimization (~5 minutes) to verify everything works.
 
 ## Environment
 
@@ -162,8 +189,9 @@ The DQN agent is trained using the stable-baselines3 library with the following 
 
 **Training Duration**: 1,000,000 timesteps per model (~10,000 episodes)
 
-### Systematic Hyperparameter Tuning
+### Hyperparameter Tuning
 
+#### Manual Tuning (Original)
 Hyperparameters were systematically tuned through experimentation. The final configuration is implemented in `dqn_runner.py`:
 
 ```python
@@ -188,6 +216,46 @@ exploration_final_eps = 0.05
 5. **Target Update**: Set to 1000 steps to balance stability and responsiveness
 
 The tuning focused on stability and exploration, critical for the sequential decision-making nature of the RSA problem.
+
+#### Automated Tuning with Optuna (Integrated)
+The implementation includes integrated Optuna hyperparameter optimization accessible via command-line flags:
+
+**Search Space**:
+- `learning_rate`: 1e-5 to 1e-2 (log scale)
+- `buffer_size`: [10000, 25000, 50000, 100000]
+- `learning_starts`: 500 to 2000
+- `batch_size`: [32, 64, 128]
+- `gamma`: 0.95 to 0.999
+- `target_update_interval`: [500, 1000, 2000]
+- `exploration_fraction`: 0.1 to 0.5
+- `exploration_final_eps`: 0.01 to 0.1
+
+**Optimization Features**:
+- **TPE Sampler**: Tree-structured Parzen Estimator for efficient search
+- **Median Pruning**: Stops unpromising trials early to save time
+- **Objective**: Maximize (1 - blocking_rate) on validation subset
+- **Fast Search**: Uses reduced training time (100K timesteps) and subset of files per trial
+- **Automatic Integration**: Best hyperparameters automatically used for full training
+
+**Usage Examples**:
+```bash
+# Standard training with manual hyperparameters
+python dqn_runner.py
+
+# With optimization (recommended)
+python dqn_runner.py --optimize --trials 20
+
+# Quick test with 5 trials
+python dqn_runner.py --optimize --trials 5
+
+# Extensive search with 50 trials
+python dqn_runner.py --optimize --trials 50
+```
+
+**Output Files**:
+- Standard training: `dqn_rsa_capacity20.zip`, `dqn_rsa_capacity10.zip`
+- With optimization: `dqn_rsa_capacity20_optimized.zip`, `dqn_rsa_capacity10_optimized.zip`
+- Optimization study: `optuna_study.pkl` (for analysis)
 
 ## Results
 
@@ -241,3 +309,63 @@ The tuning focused on stability and exploration, critical for the sequential dec
 - **Capacity=10**: Slower convergence requiring more strategic resource management and load balancing
 
 All plots show rolling 10-episode averages to smooth out noise and highlight learning trends. The results demonstrate that DQN successfully learns effective routing and spectrum allocation policies for optical networks under different resource constraints.
+
+## Project Structure
+
+```
+├── dqn_runner.py          # Main training script with integrated Optuna optimization
+├── rsaenv.py              # Custom Gymnasium environment for RSA problem
+├── nwutil.py              # Network utilities and LinkState implementation
+├── requirements.txt       # Python dependencies
+├── README.md              # This documentation
+├── data/                  # Training and evaluation datasets
+│   ├── train/             # 10,000 training request files
+│   └── eval/              # 1,000 evaluation request files
+└── plots/                 # Generated training and evaluation plots
+    ├── training_capacity20_learning_curve.png
+    ├── training_capacity20_objective.png
+    ├── eval_capacity20_objective.png
+    ├── training_capacity10_learning_curve.png
+    ├── training_capacity10_objective.png
+    └── eval_capacity10_objective.png
+```
+
+### Key Implementation Files
+
+**`dqn_runner.py`** - Main training script featuring:
+- Integrated Optuna hyperparameter optimization
+- Command-line interface with `--optimize` and `--trials` flags
+- Training pipeline for both capacity configurations
+- Automatic model evaluation and plot generation
+- Support for both manual and optimized hyperparameters
+
+**`rsaenv.py`** - Custom Gymnasium environment implementing:
+- 15-dimensional state space (12 link utilizations + 3 request features)
+- 9-action discrete space (8 paths + 1 block action)
+- Reward function (+1.0, -1.0, -2.0) aligned with blocking minimization
+- Proper constraint enforcement and state transitions
+
+**`nwutil.py`** - Network utilities providing:
+- Extended `LinkState` class with wavelength tracking
+- First-fit wavelength allocation algorithm
+- Lightpath management and expiry handling
+- Network topology and pre-defined path definitions
+
+## Getting Started
+
+1. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Run with optimization** (recommended):
+   ```bash
+   python dqn_runner.py --optimize --trials 20
+   ```
+
+3. **Or run with default hyperparameters**:
+   ```bash
+   python dqn_runner.py
+   ```
+
+The implementation is designed to be self-contained and easy to run, with all optimization features integrated into the main training script.
