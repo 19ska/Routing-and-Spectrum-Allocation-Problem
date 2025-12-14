@@ -1,0 +1,68 @@
+============================================================
+RSA DQN TRAINING RESULTS SUMMARY
+============================================================
+
+TRAINING CONFIGURATION:
+- Total timesteps per model: 1,000,000
+- Training files: 10,000
+- Evaluation files: 1,000
+- Episodes per model: ~10,000
+
+CAPACITY = 20 RESULTS:
+------------------------------
+Training Episodes: 10000
+Initial Training Reward (first 10 episodes): -121.80
+Final Training Reward (last 10 episodes): 86.30
+Final Training Blocking Rate: 0.0470
+Final Training Objective: 0.9530
+Average Evaluation Reward: 98.60
+Average Evaluation Blocking Rate: 0.0050
+Final Evaluation Blocking Rate (last 10): 0.0020
+Final Evaluation Objective: 0.9980
+
+CAPACITY = 10 RESULTS:
+------------------------------
+Training Episodes: 10000
+Initial Training Reward (first 10 episodes): -129.10
+Final Training Reward (last 10 episodes): 85.90
+Final Training Blocking Rate: 0.0550
+Final Training Objective: 0.9450
+Average Evaluation Reward: 90.24
+Average Evaluation Blocking Rate: 0.0488
+Final Evaluation Blocking Rate (last 10): 0.0310
+Final Evaluation Objective: 0.9690
+
+COMPARISON TABLE:
+------------------------------
+Metric                              Capacity=20     Capacity=10    
+-----------------------------------------------------------------
+Final Training Reward               86.30           85.90          
+Final Training Objective            0.9530          0.9450         
+Evaluation Blocking Rate            0.0020          0.0310         
+Evaluation Objective                0.9980          0.9690         
+Training Episodes                   10000           10000          
+
+KEY LEARNING MILESTONES:
+------------------------------
+Capacity=20 - First positive reward at episode: 1274
+Capacity=10 - First positive reward at episode: 1351
+
+EVALUATION PERFORMANCE DISTRIBUTION:
+------------------------------
+Capacity=20 Blocking Rate Percentiles:
+  Min: 0.0000
+  25th: 0.0000
+  50th (Median): 0.0000
+  75th: 0.0100
+  Max: 0.0900
+
+Capacity=10 Blocking Rate Percentiles:
+  Min: 0.0000
+  25th: 0.0000
+  50th (Median): 0.0050
+  75th: 0.0900
+  Max: 0.3500
+
+============================================================
+Results saved for README population
+============================================================

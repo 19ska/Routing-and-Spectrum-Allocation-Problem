@@ -215,6 +215,118 @@ def plot_evaluation_results(rewards, blocking_rates, capacity, save_prefix='eval
     print(f"Saved {plot_path}")
 
 
+def save_results_summary(callback_20, eval_rewards_20, eval_blocking_20, 
+                        callback_10, eval_rewards_10, eval_blocking_10):
+    # Save comprehensive results to text file for README population
+    with open('results.txt', 'w') as f:
+        f.write("=" * 60 + "\n")
+        f.write("RSA DQN TRAINING RESULTS SUMMARY\n")
+        f.write("=" * 60 + "\n\n")
+        
+        # Training configuration
+        f.write("TRAINING CONFIGURATION:\n")
+        f.write("- Total timesteps per model: 1,000,000\n")
+        f.write("- Training files: 10,000\n")
+        f.write("- Evaluation files: 1,000\n")
+        f.write("- Episodes per model: ~10,000\n\n")
+        
+        # Capacity=20 Results
+        f.write("CAPACITY = 20 RESULTS:\n")
+        f.write("-" * 30 + "\n")
+        
+        # Training metrics
+        final_reward_20 = np.mean(callback_20.episode_rewards[-10:]) if len(callback_20.episode_rewards) >= 10 else np.mean(callback_20.episode_rewards)
+        final_training_blocking_20 = np.mean(callback_20.episode_blocking_rates[-10:]) if len(callback_20.episode_blocking_rates) >= 10 else np.mean(callback_20.episode_blocking_rates)
+        initial_reward_20 = np.mean(callback_20.episode_rewards[:10]) if len(callback_20.episode_rewards) >= 10 else callback_20.episode_rewards[0]
+        
+        f.write(f"Training Episodes: {len(callback_20.episode_rewards)}\n")
+        f.write(f"Initial Training Reward (first 10 episodes): {initial_reward_20:.2f}\n")
+        f.write(f"Final Training Reward (last 10 episodes): {final_reward_20:.2f}\n")
+        f.write(f"Final Training Blocking Rate: {final_training_blocking_20:.4f}\n")
+        f.write(f"Final Training Objective: {1 - final_training_blocking_20:.4f}\n")
+        
+        # Evaluation metrics
+        avg_eval_reward_20 = np.mean(eval_rewards_20)
+        avg_eval_blocking_20 = np.mean(eval_blocking_20)
+        final_eval_blocking_20 = np.mean(eval_blocking_20[-10:])
+        
+        f.write(f"Average Evaluation Reward: {avg_eval_reward_20:.2f}\n")
+        f.write(f"Average Evaluation Blocking Rate: {avg_eval_blocking_20:.4f}\n")
+        f.write(f"Final Evaluation Blocking Rate (last 10): {final_eval_blocking_20:.4f}\n")
+        f.write(f"Final Evaluation Objective: {1 - final_eval_blocking_20:.4f}\n\n")
+        
+        # Capacity=10 Results
+        f.write("CAPACITY = 10 RESULTS:\n")
+        f.write("-" * 30 + "\n")
+        
+        # Training metrics
+        final_reward_10 = np.mean(callback_10.episode_rewards[-10:]) if len(callback_10.episode_rewards) >= 10 else np.mean(callback_10.episode_rewards)
+        final_training_blocking_10 = np.mean(callback_10.episode_blocking_rates[-10:]) if len(callback_10.episode_blocking_rates) >= 10 else np.mean(callback_10.episode_blocking_rates)
+        initial_reward_10 = np.mean(callback_10.episode_rewards[:10]) if len(callback_10.episode_rewards) >= 10 else callback_10.episode_rewards[0]
+        
+        f.write(f"Training Episodes: {len(callback_10.episode_rewards)}\n")
+        f.write(f"Initial Training Reward (first 10 episodes): {initial_reward_10:.2f}\n")
+        f.write(f"Final Training Reward (last 10 episodes): {final_reward_10:.2f}\n")
+        f.write(f"Final Training Blocking Rate: {final_training_blocking_10:.4f}\n")
+        f.write(f"Final Training Objective: {1 - final_training_blocking_10:.4f}\n")
+        
+        # Evaluation metrics
+        avg_eval_reward_10 = np.mean(eval_rewards_10)
+        avg_eval_blocking_10 = np.mean(eval_blocking_10)
+        final_eval_blocking_10 = np.mean(eval_blocking_10[-10:])
+        
+        f.write(f"Average Evaluation Reward: {avg_eval_reward_10:.2f}\n")
+        f.write(f"Average Evaluation Blocking Rate: {avg_eval_blocking_10:.4f}\n")
+        f.write(f"Final Evaluation Blocking Rate (last 10): {final_eval_blocking_10:.4f}\n")
+        f.write(f"Final Evaluation Objective: {1 - final_eval_blocking_10:.4f}\n\n")
+        
+        # Comparison table
+        f.write("COMPARISON TABLE:\n")
+        f.write("-" * 30 + "\n")
+        f.write(f"{'Metric':<35} {'Capacity=20':<15} {'Capacity=10':<15}\n")
+        f.write("-" * 65 + "\n")
+        f.write(f"{'Final Training Reward':<35} {final_reward_20:<15.2f} {final_reward_10:<15.2f}\n")
+        f.write(f"{'Final Training Objective':<35} {1-final_training_blocking_20:<15.4f} {1-final_training_blocking_10:<15.4f}\n")
+        f.write(f"{'Evaluation Blocking Rate':<35} {final_eval_blocking_20:<15.4f} {final_eval_blocking_10:<15.4f}\n")
+        f.write(f"{'Evaluation Objective':<35} {1-final_eval_blocking_20:<15.4f} {1-final_eval_blocking_10:<15.4f}\n")
+        f.write(f"{'Training Episodes':<35} {len(callback_20.episode_rewards):<15} {len(callback_10.episode_rewards):<15}\n\n")
+        
+        # Key milestones
+        f.write("KEY LEARNING MILESTONES:\n")
+        f.write("-" * 30 + "\n")
+        
+        # Find when rewards became positive for capacity=20
+        positive_episode_20 = next((i for i, r in enumerate(callback_20.episode_rewards) if r > 0), len(callback_20.episode_rewards))
+        f.write(f"Capacity=20 - First positive reward at episode: {positive_episode_20}\n")
+        
+        # Find when rewards became positive for capacity=10
+        positive_episode_10 = next((i for i, r in enumerate(callback_10.episode_rewards) if r > 0), len(callback_10.episode_rewards))
+        f.write(f"Capacity=10 - First positive reward at episode: {positive_episode_10}\n\n")
+        
+        # Performance percentiles
+        f.write("EVALUATION PERFORMANCE DISTRIBUTION:\n")
+        f.write("-" * 30 + "\n")
+        f.write("Capacity=20 Blocking Rate Percentiles:\n")
+        f.write(f"  Min: {np.min(eval_blocking_20):.4f}\n")
+        f.write(f"  25th: {np.percentile(eval_blocking_20, 25):.4f}\n")
+        f.write(f"  50th (Median): {np.percentile(eval_blocking_20, 50):.4f}\n")
+        f.write(f"  75th: {np.percentile(eval_blocking_20, 75):.4f}\n")
+        f.write(f"  Max: {np.max(eval_blocking_20):.4f}\n\n")
+        
+        f.write("Capacity=10 Blocking Rate Percentiles:\n")
+        f.write(f"  Min: {np.min(eval_blocking_10):.4f}\n")
+        f.write(f"  25th: {np.percentile(eval_blocking_10, 25):.4f}\n")
+        f.write(f"  50th (Median): {np.percentile(eval_blocking_10, 50):.4f}\n")
+        f.write(f"  75th: {np.percentile(eval_blocking_10, 75):.4f}\n")
+        f.write(f"  Max: {np.max(eval_blocking_10):.4f}\n\n")
+        
+        f.write("=" * 60 + "\n")
+        f.write("Results saved for README population\n")
+        f.write("=" * 60 + "\n")
+    
+    print("Results summary saved to results.txt")
+
+
 def main():
     # Main training and evaluation pipeline
     # Train capacity=20
@@ -255,11 +367,16 @@ def main():
     )
     plot_evaluation_results(eval_rewards_10, eval_blocking_10, capacity=10, save_prefix='eval')
 
+    # Save comprehensive results
+    save_results_summary(callback_20, eval_rewards_20, eval_blocking_20,
+                        callback_10, eval_rewards_10, eval_blocking_10)
+
     print("\n" + "=" * 50)
     print("Training and Evaluation Complete!")
     print("=" * 50)
     print(f"Capacity=20 - Final Avg Blocking Rate (Eval): {np.mean(eval_blocking_20[-10:]):.4f}")
     print(f"Capacity=10 - Final Avg Blocking Rate (Eval): {np.mean(eval_blocking_10[-10:]):.4f}")
+    print("\nDetailed results saved to results.txt")
 
 
 if __name__ == '__main__':
