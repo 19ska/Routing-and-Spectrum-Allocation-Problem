@@ -9,9 +9,7 @@ from rsaenv import RSAEnv
 
 
 class TrainingMetricsCallback(BaseCallback):
-    """
-    Callback to track episode rewards and blocking rates during training.
-    """
+    # Track episode rewards and blocking rates during training
     def __init__(self, verbose=0):
         super(TrainingMetricsCallback, self).__init__(verbose)
         self.episode_rewards = []
@@ -20,14 +18,11 @@ class TrainingMetricsCallback(BaseCallback):
         self.episode_count = 0
 
     def _on_step(self):
-        # Accumulate rewards
         self.current_episode_reward += self.locals['rewards'][0]
 
-        # Check if episode is done
         if self.locals['dones'][0]:
             self.episode_rewards.append(self.current_episode_reward)
 
-            # Get blocking rate from info
             if 'infos' in self.locals and len(self.locals['infos']) > 0:
                 blocking_rate = self.locals['infos'][0].get('blocking_rate', 0.0)
                 self.episode_blocking_rates.append(blocking_rate)
@@ -46,9 +41,7 @@ class TrainingMetricsCallback(BaseCallback):
 
 
 class MultiFileEnvWrapper(gym.Wrapper):
-    """
-    Wrapper to cycle through multiple request files during training.
-    """
+    # Cycles through multiple request files during training
     def __init__(self, request_files, capacity=20):
         self.request_files = request_files
         self.capacity = capacity
@@ -57,54 +50,34 @@ class MultiFileEnvWrapper(gym.Wrapper):
         super().__init__(env)
 
     def reset(self, **kwargs):
-        # Cycle through request files
         request_file = self.request_files[self.current_file_idx]
         self.current_file_idx = (self.current_file_idx + 1) % len(self.request_files)
-
-        # Reset with new request file
         obs, info = self.env.reset(options={'request_file': request_file})
         return obs, info
 
 
 def train_dqn_agent(capacity=20, total_timesteps=1000000, model_name='dqn_rsa'):
-    """
-    Train a DQN agent for the RSA problem.
-
-    Args:
-        capacity: Link capacity (number of wavelengths)
-        total_timesteps: Total training timesteps
-        model_name: Name for saving the model
-
-    Returns:
-        model: Trained DQN model
-        callback: Callback with training metrics
-    """
+    # Train a DQN agent for the RSA problem
     print(f"Training DQN agent with capacity={capacity}")
 
-    # Load training request files
     train_files = sorted(glob.glob('data/train/requests-*.csv'))
     print(f"Found {len(train_files)} training files")
 
-    # Create environment wrapper
     env = MultiFileEnvWrapper(train_files, capacity=capacity)
-
-    # Create callback
     callback = TrainingMetricsCallback(verbose=1)
 
-    # Hyperparameters - systematically tuned
-    # These values were selected based on experimentation with different configurations
-    learning_rate = 1e-4  # Lower learning rate for stable convergence
-    buffer_size = 50000   # Large buffer to store diverse experiences
-    learning_starts = 1000  # Start learning after collecting initial experiences
-    batch_size = 64       # Standard batch size for DQN
-    tau = 1.0             # Hard target network update
-    gamma = 0.99          # High discount factor for long-term planning
-    target_update_interval = 1000  # Update target network every 1000 steps
-    exploration_fraction = 0.3  # Explore for 30% of training
+    # Tuned hyperparameters
+    learning_rate = 1e-4
+    buffer_size = 50000
+    learning_starts = 1000
+    batch_size = 64
+    tau = 1.0
+    gamma = 0.99
+    target_update_interval = 1000
+    exploration_fraction = 0.3
     exploration_initial_eps = 1.0
-    exploration_final_eps = 0.05  # Maintain some exploration
+    exploration_final_eps = 0.05
 
-    # Create DQN model
     model = DQN(
         'MlpPolicy',
         env,
@@ -118,42 +91,26 @@ def train_dqn_agent(capacity=20, total_timesteps=1000000, model_name='dqn_rsa'):
         exploration_fraction=exploration_fraction,
         exploration_initial_eps=exploration_initial_eps,
         exploration_final_eps=exploration_final_eps,
-        verbose=1,
-        tensorboard_log=f"./tensorboard_logs/{model_name}/"
+        verbose=1
     )
 
     print("Starting training...")
     model.learn(total_timesteps=total_timesteps, callback=callback)
 
-    # Save the model
     model.save(model_name)
     print(f"Model saved to {model_name}.zip")
 
     env.close()
-
     return model, callback
 
 
 def evaluate_agent(model_path, capacity=20, eval_episodes=1000):
-    """
-    Evaluate a trained DQN agent on the evaluation dataset.
-
-    Args:
-        model_path: Path to the trained model
-        capacity: Link capacity
-        eval_episodes: Number of evaluation episodes
-
-    Returns:
-        episode_rewards: List of episode rewards
-        episode_blocking_rates: List of blocking rates
-    """
+    # Evaluate a trained DQN agent on the evaluation dataset
     print(f"Evaluating agent from {model_path}")
 
-    # Load evaluation request files
     eval_files = sorted(glob.glob('data/eval/requests-*.csv'))[:eval_episodes]
     print(f"Evaluating on {len(eval_files)} files")
 
-    # Load model
     model = DQN.load(model_path)
 
     episode_rewards = []
@@ -184,17 +141,12 @@ def evaluate_agent(model_path, capacity=20, eval_episodes=1000):
 
 
 def plot_training_results(callback, capacity, save_prefix='training'):
-    """
-    Plot training results: learning curve and objective function.
-
-    Args:
-        callback: Training callback with metrics
-        capacity: Link capacity
-        save_prefix: Prefix for saved plot files
-    """
+    # Plot training results: learning curve and objective function
+    plots_dir = 'plots'
+    os.makedirs(plots_dir, exist_ok=True)
+    
     episodes = np.arange(len(callback.episode_rewards))
 
-    # Compute rolling averages (last 10 episodes)
     def rolling_avg(data, window=10):
         avg = []
         for i in range(len(data)):
@@ -205,7 +157,7 @@ def plot_training_results(callback, capacity, save_prefix='training'):
     avg_rewards = rolling_avg(callback.episode_rewards)
     avg_blocking_rates = rolling_avg(callback.episode_blocking_rates)
 
-    # Plot 1: Learning Curve (Average Episode Rewards vs Episode)
+    # Learning curve
     plt.figure(figsize=(10, 6))
     plt.plot(episodes, avg_rewards, linewidth=1.5)
     plt.xlabel('Episode', fontsize=12)
@@ -213,11 +165,12 @@ def plot_training_results(callback, capacity, save_prefix='training'):
     plt.title(f'Learning Curve (Capacity={capacity})', fontsize=14)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f'{save_prefix}_capacity{capacity}_learning_curve.png', dpi=300)
+    plot_path = os.path.join(plots_dir, f'{save_prefix}_capacity{capacity}_learning_curve.png')
+    plt.savefig(plot_path, dpi=300)
     plt.close()
-    print(f"Saved {save_prefix}_capacity{capacity}_learning_curve.png")
+    print(f"Saved {plot_path}")
 
-    # Plot 2: Objective Function (1 - Average Blocking Rate vs Episode)
+    # Objective function
     objective = [1 - br for br in avg_blocking_rates]
     plt.figure(figsize=(10, 6))
     plt.plot(episodes, objective, linewidth=1.5, color='green')
@@ -226,24 +179,19 @@ def plot_training_results(callback, capacity, save_prefix='training'):
     plt.title(f'Objective Function over Training (Capacity={capacity})', fontsize=14)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f'{save_prefix}_capacity{capacity}_objective.png', dpi=300)
+    plot_path = os.path.join(plots_dir, f'{save_prefix}_capacity{capacity}_objective.png')
+    plt.savefig(plot_path, dpi=300)
     plt.close()
-    print(f"Saved {save_prefix}_capacity{capacity}_objective.png")
+    print(f"Saved {plot_path}")
 
 
 def plot_evaluation_results(rewards, blocking_rates, capacity, save_prefix='eval'):
-    """
-    Plot evaluation results.
-
-    Args:
-        rewards: List of episode rewards
-        blocking_rates: List of blocking rates
-        capacity: Link capacity
-        save_prefix: Prefix for saved plot files
-    """
+    # Plot evaluation results
+    plots_dir = 'plots'
+    os.makedirs(plots_dir, exist_ok=True)
+    
     episodes = np.arange(len(rewards))
 
-    # Compute rolling averages (last 10 episodes)
     def rolling_avg(data, window=10):
         avg = []
         for i in range(len(data)):
@@ -253,7 +201,6 @@ def plot_evaluation_results(rewards, blocking_rates, capacity, save_prefix='eval
 
     avg_blocking_rates = rolling_avg(blocking_rates)
 
-    # Plot: Objective Function on Eval Dataset
     objective = [1 - br for br in avg_blocking_rates]
     plt.figure(figsize=(10, 6))
     plt.plot(episodes, objective, linewidth=1.5, color='blue')
@@ -262,16 +209,15 @@ def plot_evaluation_results(rewards, blocking_rates, capacity, save_prefix='eval
     plt.title(f'Evaluation Performance (Capacity={capacity})', fontsize=14)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(f'{save_prefix}_capacity{capacity}_objective.png', dpi=300)
+    plot_path = os.path.join(plots_dir, f'{save_prefix}_capacity{capacity}_objective.png')
+    plt.savefig(plot_path, dpi=300)
     plt.close()
-    print(f"Saved {save_prefix}_capacity{capacity}_objective.png")
+    print(f"Saved {plot_path}")
 
 
 def main():
-    """
-    Main training and evaluation pipeline.
-    """
-    # Part 1: Train with capacity=20
+    # Main training and evaluation pipeline
+    # Train capacity=20
     print("=" * 50)
     print("PART 1: Training with Capacity=20")
     print("=" * 50)
@@ -282,7 +228,6 @@ def main():
     )
     plot_training_results(callback_20, capacity=20, save_prefix='training')
 
-    # Evaluate on eval dataset
     print("\nEvaluating on eval dataset (capacity=20)...")
     eval_rewards_20, eval_blocking_20 = evaluate_agent(
         'dqn_rsa_capacity20',
@@ -291,7 +236,7 @@ def main():
     )
     plot_evaluation_results(eval_rewards_20, eval_blocking_20, capacity=20, save_prefix='eval')
 
-    # Part 2: Train with capacity=10
+    # Train capacity=10
     print("\n" + "=" * 50)
     print("PART 2: Training with Capacity=10")
     print("=" * 50)
@@ -302,7 +247,6 @@ def main():
     )
     plot_training_results(callback_10, capacity=10, save_prefix='training')
 
-    # Evaluate on eval dataset
     print("\nEvaluating on eval dataset (capacity=10)...")
     eval_rewards_10, eval_blocking_10 = evaluate_agent(
         'dqn_rsa_capacity10',
